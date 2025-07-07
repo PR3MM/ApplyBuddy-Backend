@@ -5,7 +5,7 @@ import getData from "../controllers/getData.js";
 import manual_data_entry from "../controllers/manual_entry.js";
 
 router.get('/',(req,res)=>{
-console.log("Hi");
+ 
 })
 router.get('/get-data',(req,res)=>{
     getData.getData(req,res);
