@@ -1,4 +1,5 @@
 import jobData from '../models/job.js';
+import client from '../redis.js';
 
 
 export async function ai_data_entry(req, res) {
@@ -9,6 +10,7 @@ export async function ai_data_entry(req, res) {
         mode,
         startDate,
         deadline,
+        assessment,   
         duration,
         stipend,
         salaryOnConversion,
@@ -24,8 +26,11 @@ export async function ai_data_entry(req, res) {
         sourceName,
         contactInfo,
         selectionProcess,
+        jobDes,
+        summary,
         notes,
         isShortlisted,
+        status,
         createdAt,
         updatedAt
     } = req.body;
@@ -39,6 +44,7 @@ export async function ai_data_entry(req, res) {
             mode,
             startDate,
             deadline,
+            assessment,
             duration,
             stipend,
             salaryOnConversion,
@@ -54,8 +60,11 @@ export async function ai_data_entry(req, res) {
             sourceName,
             contactInfo,
             selectionProcess,
+            jobDes,
+            summary,
             notes,
             isShortlisted,
+            status,
             createdAt,
             updatedAt
         }
@@ -63,7 +72,13 @@ export async function ai_data_entry(req, res) {
         const newdata = new jobData(data);
         await newdata.save();
 
-        res.status(201).json({ message: 'Tracking data saved successfully' });
+        // Invalidate related caches after creating new job
+        await Promise.all([
+            client.del('all_jobs'),
+            client.del('dashboard_data')
+        ]);
+
+        res.status(201).json({ message: 'Job data saved successfully' });
     } catch (error) {
         console.error('Error saving tracking data:', error);
         res.status(500).json({ message: 'Internal server error' });

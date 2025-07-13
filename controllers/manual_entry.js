@@ -1,4 +1,5 @@
 import jobData from '../models/job.js';
+import client from '../redis.js';
 
 
 export async function manual_data_entry(req, res) {
@@ -9,6 +10,7 @@ export async function manual_data_entry(req, res) {
         mode,
         startDate,
         deadline,
+        assessment,  
         duration,
         stipend,
         salaryOnConversion,
@@ -24,8 +26,11 @@ export async function manual_data_entry(req, res) {
         sourceName,
         contactInfo,
         selectionProcess,
+        jobDes,
+        summary,
         notes,
         isShortlisted,
+        status,
         createdAt,
         updatedAt
     } = req.body;
@@ -39,6 +44,7 @@ export async function manual_data_entry(req, res) {
             mode,
             startDate,
             deadline,
+            assessment,
             duration,
             stipend,
             salaryOnConversion,
@@ -54,14 +60,23 @@ export async function manual_data_entry(req, res) {
             sourceName,
             contactInfo,
             selectionProcess,
+            jobDes,
+            summary,
             notes,
             isShortlisted,
+            status,
             createdAt,
             updatedAt
         }
 
         const newdata = new jobData(data);
         await newdata.save();
+
+        // Invalidate related caches after creating new job
+        await Promise.all([
+            client.del('all_jobs'),
+            client.del('dashboard_data')
+        ]);
 
         res.status(201).json({ message: 'Tracking data saved successfully' });
     } catch (error) {
