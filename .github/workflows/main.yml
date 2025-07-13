@@ -1,0 +1,16 @@
+name: Ping Render Service
+
+on:
+  schedule:
+    # Runs every 14 minutes
+    - cron: '*/14 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Service URL
+        run: |
+          curl -s --head ${{ secrets.RENDER_SERVICE_URL }} > /dev/null
+          echo "Pinged Render service at ${{ secrets.RENDER_SERVICE_URL }}"
