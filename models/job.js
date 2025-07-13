@@ -15,18 +15,20 @@ const jobSchema = new mongoose.Schema({
   genderRestriction: { type: String, enum: ['Male', 'Female', 'Any','None'], default: 'Any' },
   batch: [{ type: String }], // e.g. ["2026", "2025", "2027"]
   branches: [{ type: String }], // e.g. ["CS", "IT", "E&TC"]
-  jobType: { type: String, enum: ['Internship', 'Full-Time', 'Intern + PPO'], default: 'Internship' },
+  jobType: { type: String, enum: ['Internship', 'Job', 'Hackathon'], default: 'Internship' },
   formLink: { type: String, unique: true }, // Application form or registration link
   sourceEmail: { type: String }, // Original email sender (e.g. s.rawandale@gmail.com)
   sourceName: { type: String }, // Name of source (e.g. Prof. Shitalkumar)
   contactInfo: { type: String }, // Phone or LinkedIn
   selectionProcess: [{ type: String }], // ["Online Test", "Technical Interview", "HR"]
-  notes: { type: String },
-  isShortlisted: { type: Boolean, default: false }, // If the student is selected
+  jobDes: {type: String}, // link + text
+  summary: {type: String}, //summary all othersss-------
+  
   createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }, 
   //imp
   deadline: { type: Date }, // Application deadline
+  assessment: { type: Date }, // Assessment/Test date
   status: { type: String, enum: ['active', 'postponed', 'cancelled'], default: 'active' }, // Job status
 }, { timestamps: true });
 
