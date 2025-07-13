@@ -47,4 +47,7 @@ typings/
 # Nuxt.js build output
 .nuxt   
 
-todo.md 
+todo.md     
+# Mac system files
+.DS_Store
+# Thumbnails
