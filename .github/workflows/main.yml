@@ -2,8 +2,10 @@ name: Ping Render Service
 
 on:
   schedule:
-    # Runs every 14 minutes (UTC time)
-    - cron: '*/14 * * * *'
+    # Run every 10 minutes instead of 14 (more reliable)
+    - cron: '*/10 * * * *'
+    # Backup: also run every 15 minutes offset by 5
+    - cron: '5,20,35,50 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -12,5 +14,10 @@ jobs:
     steps:
       - name: Ping Render Service URL
         run: |
-          curl -s --head ${{ secrets.RENDER_SERVICE_URL }} > /dev/null
-          echo "Pinged Render service at $(date -u)"
+          response=$(curl -s -o /dev/null -w "%{http_code}" ${{ secrets.RENDER_SERVICE_URL }})
+          if [ $response -eq 200 ]; then
+            echo "✅ Successfully pinged Render service at $(date -u) - HTTP $response"
+          else
+            echo "❌ Failed to ping Render service at $(date -u) - HTTP $response"
+            exit 1
+          fi
