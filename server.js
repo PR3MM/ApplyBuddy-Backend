@@ -32,7 +32,6 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static('public'));
 
-
 connectDB();
 
 // Health check endpoint (before rate limiting for monitoring)
@@ -106,6 +105,41 @@ app.use('*', (req, res) => {
   });
 });
 
+// Self-ping mechanism to keep Render service alive
+function initializeSelfPing() {
+  // Only run in production (Render environment)
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('🔧 Self-ping disabled in development mode');
+    return;
+  }
+
+  const PING_INTERVAL = 13 * 60 * 1000; // 13 minutes
+  const SERVICE_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+  
+  function selfPing() {
+    fetch(`${SERVICE_URL}/health`)
+      .then(response => {
+        if (response.ok) {
+          console.log(`✅ Self-ping successful at ${new Date().toISOString()}`);
+        } else {
+          console.log(`⚠️ Self-ping returned ${response.status} at ${new Date().toISOString()}`);
+        }
+      })
+      .catch(error => {
+        console.error(`❌ Self-ping failed at ${new Date().toISOString()}:`, error.message);
+      });
+  }
+
+  // Start self-pinging after app is fully ready
+  setTimeout(() => {
+    console.log('🚀 Starting self-ping mechanism...');
+    console.log(`📍 Pinging: ${SERVICE_URL}/health every 13 minutes`);
+    
+    selfPing(); // Initial ping
+    setInterval(selfPing, PING_INTERVAL); // Recurring pings
+  }, 30000); // Wait 30 seconds for app to fully start
+}
+
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   console.error('Unhandled Promise Rejection:', err);
@@ -122,4 +156,7 @@ process.on('uncaughtException', (err) => {
 
 const server = app.listen(PORT, () => {
   console.log(`Server running on website at http://localhost:${PORT}`);
+  
+  // Initialize self-ping mechanism after server starts
+  initializeSelfPing();
 });
