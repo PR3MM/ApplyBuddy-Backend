@@ -10,6 +10,13 @@ router.get('/', (req, res) => {
     res.status(200).json({ message: 'Welcome to ApplyBuddy API',
         status: 'success'
     });
+    //show what ever data is sent 
+});
+router.post('/', (req, res) => {
+    // Handle POST requests
+    const requestData = req.body;
+    console.log('Received POST data:', requestData);
+    res.status(200).json({ message: 'Data received successfully', data: requestData });
 });
 router.get('/dashboard', (req, res) => {
     dashboard(req, res);
