@@ -5,15 +5,14 @@ import getData from "../controllers/getData.js";
 import manual_data_entry from "../controllers/manual_entry.js";
 import { dashboard } from "../controllers/dashboard.js";
 import job_update from "../controllers/job_update.js";
+import { extension } from "../controllers/extension.js";
 
 router.get('/', (req, res) => {
     res.status(200).json({ message: 'Welcome to ApplyBuddy API',
         status: 'success'
-    });
-    //show what ever data is sent 
+    }); 
 });
-router.post('/', (req, res) => {
-    // Handle POST requests
+router.post('/', (req, res) => { 
     const requestData = req.body;
     console.log('Received POST data:', requestData);
     res.status(200).json({ message: 'Data received successfully', data: requestData });
@@ -37,6 +36,12 @@ router.post('/ai-entry', (req, res) => {
 router.post('/update-job', (req, res) => {
     job_update.job_update(req, res);
 })
+
+router.post('/extension', (req, res) => {
+
+    extension(req, res);
+ 
+});
 
 export default router;
 
