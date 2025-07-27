@@ -30,56 +30,88 @@ export async function extension(req, res) {
         });
     }
 
-    const prompt = `You are an intelligent form-filling assistant. Your task is to analyze the provided form fields and fill them ONLY with values that can be derived from the user's personal information.
+    // Create enhanced field descriptions with proper options handling
+    const enhancedFields = fields.map(field => {
+        const questionText = field.questionText || field.field?.questionText || 'unknown';
+        const fieldType = field.field?.inputType || field.inputType || 'text';
+        const isRequired = questionText.includes('*');
+        const options = field.options || [];
+        
+        return {
+            questionText,
+            fieldType,
+            isRequired,
+            options,
+            hasOptions: options.length > 0
+        };
+    });
+
+    const prompt = `You are an intelligent form-filling assistant. Your task is to analyze the provided form fields and fill them with the most appropriate values from the user's personal information.
 
 CRITICAL REQUIREMENTS:
-- You MUST return a valid JSON object with field values
-- ONLY fill fields if you can derive the value from the provided user data
-- If user data does not contain information for a field, leave it as an empty string ""
-- DO NOT make up or assume any data that is not provided in the user information
-- DO NOT use placeholder values or defaults if user data is missing
-
-STRICT RULES:
-1. Only use data that is explicitly provided in the USER DATA section
-2. If a field cannot be filled from user data, set its value to ""
-3. Do not invent, assume, or create any fictional data
-4. Return ONLY a valid JSON object with field names as keys and filled values as values
-5. Do not include any explanatory text, only the JSON response
+- You MUST return a valid JSON object with field names as keys and values as answers
+- Use the EXACT field names (questionText) as provided in the form fields
+- ONLY fill fields when you can confidently derive the value from user data
+- If user data doesn't contain relevant information, use empty string ""
+- For fields with specific options, you MUST choose from the available options only
+- Do not invent, assume, or create any data not present in user information
 
 USER DATA AVAILABLE:
 ${JSON.stringify(userData, null, 2)}
 
 FORM FIELDS TO FILL:
-${fields.map(field => {
-    const fieldName = field.questionText || field.field?.questionText || 'unknown';
-    const fieldType = field.field?.inputType || field.inputType || 'text';
-    const required = fieldName.includes('*');
-    return `- Field Name: "${fieldName}" | Type: "${fieldType}" | Required: ${required}`;
-}).join('\n')}
+${enhancedFields.map((field, index) => {
+    let fieldInfo = `${index + 1}. Field Name: "${field.questionText}"`;
+    fieldInfo += `\n   Type: ${field.fieldType}`;
+    fieldInfo += `\n   Required: ${field.isRequired}`;
+    
+    if (field.hasOptions) {
+        fieldInfo += `\n   Available Options: ${JSON.stringify(field.options)}`;
+        fieldInfo += `\n   IMPORTANT: You MUST select EXACTLY one option from the list above`;
+    } else {
+        fieldInfo += `\n   Input Type: Free text - extract from user data`;
+    }
+    
+    return fieldInfo;
+}).join('\n\n')}
 
-IMPORTANT: Use the exact field names (questionText) as keys in your JSON response.
+INTELLIGENT MATCHING RULES:
 
-FIELD MAPPING GUIDELINES (only if data exists in user data):
-- Map user's educational information to qualification fields
-- Map user's academic scores to percentage fields
-- Map user's institution details to college/university fields
-- Map user's technical skills/projects to technical achievement fields
-- Map user's coding platform data to rating fields
-- If no corresponding user data exists, use empty string ""
+1. **PRN Number**: Look for "university prn number", "prn", "122B1B073" in user data
+2. **College Name**: Must select from available options - look for "PCCOE" in user data and match to "Pimpri Chinchwad Education Trust's PCCOE, Pune"
+3. **Name**: Look for "name", "Premved Dhote" in user data
+4. **Mobile Number**: Look for "contact no", "8114482840" in user data (remove +91 or 0 prefix)
+5. **Degree/Course**: Look for "course", "BE/ BTech" in user data
+6. **Branch/Specialization**: Look for "stream", "CS" and map to appropriate branch
+7. **Year of Passing**: Look for "ug passing year", "2026" in user data and select from options
 
-EXAMPLE OUTPUT (only fill what you know from user data):
+SPECIFIC MATCHING FOR YOUR DATA:
+- "ug passing year": "2026" → select "2026" from options
+- "course": "BE/ BTech" → use directly
+- "stream": "CS" → use directly
+- "university prn number": "122B1B073" → use directly
+- "name": "Premved Dhote" → use directly
+- "contact no": "8114482840" → use directly
+- College: User data suggests PCCOE → select "Pimpri Chinchwad Education Trust's PCCOE, Pune"
+
+EXAMPLE OUTPUT FORMAT:
 {
-  "Highest Qualification Year of Passing *": "",
-  "College Name *": "",
-  "UG % *": "",
-  "Technical Achievements *": "",
-  "Project *": ""
+  "PRN Number  *": "122B1B073",
+  "College Name *": "Pimpri Chinchwad Education Trust's PCCOE, Pune",
+  "Name of the candidate *": "Premved Dhote",
+  "10 Digit Mobile Number (Do NOT write +91 or 0) *": "8114482840",
+  "Degree/ Course *": "BE/ BTech",
+  "Branch/ Specialization *": "CS",
+  "Year of Passing *": "2026"
 }
 
-Return only the JSON object. Use empty strings for unknown fields.`;
+FINAL INSTRUCTIONS:
+- Return ONLY the JSON object, no other text
+- For radio/dropdown fields, the answer MUST be from the provided options list
+- Use exact field names including spaces and asterisks
+- Match user data intelligently but stay within constraints`;
 
     try {
-
         const apiKeys = [
             process.env.GEMINI_API_KEY_1,
             process.env.GEMINI_API_KEY_2
@@ -111,32 +143,26 @@ Return only the JSON object. Use empty strings for unknown fields.`;
                     contents: prompt,
                 });
 
-                console.log('response:', response); // Debug log
+                console.log('response:', response);
                 let fullText = '';
                 for await (const chunk of response) {
                     if (chunk.text) {
                         fullText += chunk.text;
                     }
-                    console.log('Chunk received:', chunk.text); // Debug each chunk
+                    console.log('Chunk received:', chunk.text);
                 }
 
                 console.log(`API call successful with key ${(keyIndex + attemptCount) % apiKeys.length + 1}`);
-                console.log('Raw AI response:', fullText); // Debug log
+                console.log('Raw AI response:', fullText);
                 
-                // Check if response is empty or just whitespace
                 if (!fullText || fullText.trim().length === 0) {
                     throw new Error('Empty response from AI model');
                 }
                 
-                // Parse the JSON response from Gemini
                 try {
-                    // Clean the response - extract JSON from the text
                     let cleanedText = fullText.trim();
-                    
-                    // Remove any markdown code block markers
                     cleanedText = cleanedText.replace(/```json\s*/g, '').replace(/```\s*/g, '');
                     
-                    // Try to find JSON object in the response
                     const jsonStart = cleanedText.indexOf('{');
                     const jsonEnd = cleanedText.lastIndexOf('}') + 1;
                     
@@ -144,19 +170,63 @@ Return only the JSON object. Use empty strings for unknown fields.`;
                         cleanedText = cleanedText.substring(jsonStart, jsonEnd);
                     }
                     
-                    console.log('Cleaned JSON text:', cleanedText); // Debug log
+                    console.log('Cleaned JSON text:', cleanedText);
                     
-                    // Check if cleaned text is just empty braces
                     if (cleanedText.trim() === '{}') {
                         throw new Error('AI returned empty JSON object');
                     }
                     
                     const filledData = JSON.parse(cleanedText);
+                    console.log('AI Response Fields:', Object.keys(filledData));
+                    console.log('AI Response Data:', filledData);
                     
                     // Transform the AI response to match the required output format
                     const transformedData = fields.map(field => {
                         const questionText = field.questionText || field.field?.questionText || 'unknown';
-                        const answer = filledData[questionText] || "";
+                        let answer = filledData[questionText] || "";
+                        
+                        // Enhanced matching logic
+                        if (!answer && filledData) {
+                            // Try exact match first
+                            for (const [key, value] of Object.entries(filledData)) {
+                                if (key === questionText) {
+                                    answer = value;
+                                    break;
+                                }
+                            }
+                            
+                            // If still no match, try normalized matching
+                            if (!answer) {
+                                const normalizedQuestionText = questionText.toLowerCase().replace(/\s+/g, ' ').trim();
+                                for (const [key, value] of Object.entries(filledData)) {
+                                    const normalizedKey = key.toLowerCase().replace(/\s+/g, ' ').trim();
+                                    if (normalizedKey === normalizedQuestionText) {
+                                        answer = value;
+                                        console.log(`Matched "${questionText}" with "${key}": "${value}"`);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Validate answer against options if they exist
+                        const options = field.options || [];
+                        if (options.length > 0 && answer && !options.includes(answer)) {
+                            console.log(`Warning: Answer "${answer}" not in options for field "${questionText}"`);
+                            console.log(`Available options:`, options);
+                            // Try to find a close match
+                            const lowerAnswer = answer.toLowerCase();
+                            const matchedOption = options.find(opt => 
+                                opt.toLowerCase().includes(lowerAnswer) || 
+                                lowerAnswer.includes(opt.toLowerCase())
+                            );
+                            if (matchedOption) {
+                                answer = matchedOption;
+                                console.log(`Corrected to: "${answer}"`);
+                            } else {
+                                answer = ""; // Clear invalid answer
+                            }
+                        }
                         
                         return {
                             field: {
@@ -173,20 +243,16 @@ Return only the JSON object. Use empty strings for unknown fields.`;
                         };
                     });
                     
+                    console.log('Transformed data:', JSON.stringify(transformedData, null, 2));
+                    
                     res.status(200).json({
                         success: true,
-                        data: transformedData,
-                        // metadata: {
-                        //     apiKeyUsed: (keyIndex + attemptCount) % apiKeys.length + 1,
-                        //     totalAttempts: attemptCount + 1,
-                        //     roundRobinPosition: roundRobinCounter,
-                        //     modelUsed: 'gemini-2.0-flash-001'
-                        // }
+                        data: transformedData
                     });
                     return;  
                 } catch (parseError) {
                     console.error('Error parsing Gemini response:', parseError);
-                    console.error('Full response text:', fullText); // Additional debug
+                    console.error('Full response text:', fullText);
                     res.status(500).json({
                         success: false,
                         message: 'Error parsing AI response',
