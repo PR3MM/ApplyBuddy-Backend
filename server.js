@@ -25,14 +25,54 @@ const limiter = rateLimit({
   legacyHeaders: false,
 });
 
+const corsOptions = {
+  origin: [
+    process.env.FRONTEND_URL || 'http://localhost:3000',
+    process.env.PROXY_SERVICE_URL
+  ],
+  credentials: true, 
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+}
+
+
 app.use(limiter);
-app.use(cors());
+app.use(cors(corsOptions));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static('public'));
 
 connectDB();
+
+// Authentication middleware for proxy requests
+const authenticateProxyRequest = (req, res, next) => {
+  // Skip authentication for health check and development
+  if (req.path === '/health' || process.env.NODE_ENV === 'development') {
+    return next();
+  }
+
+  const authHeader = req.headers.authorization;
+  const expectedApiKey = process.env.BACKEND_API_KEY;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({
+      success: false,
+      message: 'Missing or invalid authorization header'
+    });
+  }
+
+  const providedApiKey = authHeader.split(' ')[1];
+  
+  if (providedApiKey !== expectedApiKey) {
+    return res.status(403).json({
+      success: false,
+      message: 'Invalid API key'
+    });
+  }
+
+  next();
+};
 
 // Health check endpoint (before rate limiting for monitoring)
 app.get('/health', async (req, res) => {
@@ -81,7 +121,8 @@ app.get('/health', async (req, res) => {
   }
 });
 
-app.use('/',router);
+// Apply authentication middleware to all routes except health check
+app.use('/', authenticateProxyRequest, router);
 
 // Global error handling middleware
 app.use((err, req, res, next) => {

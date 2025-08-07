@@ -3,15 +3,16 @@ import { GoogleGenAI } from '@google/genai';
 let roundRobinCounter = 0;
 
 export async function extension(req, res) {
-    console.log('Received request:', JSON.stringify(req.body, null, 2));
+    console.log('req:', req);
+    // console.log('Received request:', JSON.stringify(req.body, null, 2));
     const fields = req.body.fields || [];
     const userData = req.body.userData || req.body.userdata || {};
     const formContext = req.body.formContext || 'general'; // New: form type context
 
     // Debug logging
-    console.log('Received fields:', JSON.stringify(fields, null, 2));
-    console.log('Received userData:', JSON.stringify(userData, null, 2));
-    console.log('Form context:', formContext);
+    // console.log('Received fields:', JSON.stringify(fields, null, 2));
+    // console.log('Received userData:', JSON.stringify(userData, null, 2));
+    // console.log('Form context:', formContext);
 
     if (!fields || fields.length === 0) {
         return res.status(400).json({
@@ -219,7 +220,7 @@ FINAL INSTRUCTIONS:
         const keyIndex = roundRobinCounter % apiKeys.length;
         roundRobinCounter = (roundRobinCounter + 1) % apiKeys.length;
         
-        console.log(`Using API key ${keyIndex + 1} (total requests processed: ${roundRobinCounter})`);
+        // console.log(`Using API key ${keyIndex + 1} (total requests processed: ${roundRobinCounter})`);
 
         let selectedKey = apiKeys[keyIndex];
         let attemptCount = 0;
@@ -227,7 +228,7 @@ FINAL INSTRUCTIONS:
 
         while (attemptCount < apiKeys.length) {
             try {
-                console.log(`Attempting API call with key ${(keyIndex + attemptCount) % apiKeys.length + 1} (attempt ${attemptCount + 1})`);
+                // console.log(`Attempting API call with key ${(keyIndex + attemptCount) % apiKeys.length + 1} (attempt ${attemptCount + 1})`);
                 
                 const ai = new GoogleGenAI({
                     apiKey: selectedKey,
@@ -245,8 +246,8 @@ FINAL INSTRUCTIONS:
                     }
                 }
 
-                console.log(`API call successful with key ${(keyIndex + attemptCount) % apiKeys.length + 1}`);
-                console.log('Raw AI response:', fullText);
+                // console.log(`API call successful with key ${(keyIndex + attemptCount) % apiKeys.length + 1}`);
+                // console.log('Raw AI response:', fullText);
                 
                 if (!fullText || fullText.trim().length === 0) {
                     throw new Error('Empty response from AI model');
@@ -263,15 +264,15 @@ FINAL INSTRUCTIONS:
                         cleanedText = cleanedText.substring(jsonStart, jsonEnd);
                     }
                     
-                    console.log('Cleaned JSON text:', cleanedText);
+                    // console.log('Cleaned JSON text:', cleanedText);
                     
                     if (cleanedText.trim() === '{}') {
                         throw new Error('AI returned empty JSON object');
                     }
                     
                     const filledData = JSON.parse(cleanedText);
-                    console.log('AI Response Fields:', Object.keys(filledData));
-                    console.log('AI Response Data:', filledData);
+                    // console.log('AI Response Fields:', Object.keys(filledData));
+                    // console.log('AI Response Data:', filledData);
                     
                     // Transform and validate the AI response
                     const transformedData = fields.map(field => {
@@ -295,7 +296,7 @@ FINAL INSTRUCTIONS:
                                     const normalizedKey = key.toLowerCase().replace(/\s+/g, ' ').trim();
                                     if (normalizedKey === normalizedQuestionText) {
                                         answer = value;
-                                        console.log(`Matched "${questionText}" with "${key}": "${value}"`);
+                                        // console.log(`Matched "${questionText}" with "${key}": "${value}"`);
                                         break;
                                     }
                                 }
@@ -305,8 +306,8 @@ FINAL INSTRUCTIONS:
                         // Validate against options and security rules
                         const options = field.options || [];
                         if (options.length > 0 && answer && !options.includes(answer)) {
-                            console.log(`Warning: Answer "${answer}" not in options for field "${questionText}"`);
-                            console.log(`Available options:`, options);
+                            // console.log(`Warning: Answer "${answer}" not in options for field "${questionText}"`);
+                            // console.log(`Available options:`, options);
                             
                             // Find best semantic match
                             const lowerAnswer = answer.toLowerCase();
@@ -321,7 +322,7 @@ FINAL INSTRUCTIONS:
                             
                             if (matchedOption) {
                                 answer = matchedOption;
-                                console.log(`Corrected to: "${answer}"`);
+                                // console.log(`Corrected to: "${answer}"`);
                             } else {
                                 answer = "";
                             }
@@ -334,7 +335,7 @@ FINAL INSTRUCTIONS:
                         );
                         
                         if (isSensitive) {
-                            console.log(`Security: Skipping sensitive field "${questionText}"`);
+                            // console.log(`Security: Skipping sensitive field "${questionText}"`);
                             answer = "";
                         }
                         
@@ -353,7 +354,7 @@ FINAL INSTRUCTIONS:
                         };
                     });
                     
-                    console.log('Transformed data:', JSON.stringify(transformedData, null, 2));
+                    // console.log('Transformed data:', JSON.stringify(transformedData, null, 2));
                     
                     res.status(200).json({
                         success: true,
