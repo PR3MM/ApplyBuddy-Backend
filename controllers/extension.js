@@ -354,7 +354,7 @@ FINAL INSTRUCTIONS:
                         };
                     });
                     
-                    // console.log('Transformed data:', JSON.stringify(transformedData, null, 2));
+                    console.log('Transformed data:', JSON.stringify(transformedData, null, 2));
                     
                     res.status(200).json({
                         success: true,
