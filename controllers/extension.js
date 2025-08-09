@@ -358,7 +358,7 @@ FINAL INSTRUCTIONS:
                     
                     res.status(200).json({
                         success: true,
-                        data: transformedData,
+                        data: JSON.stringify(transformedData, null, 2),
                         metadata: {
                             formContext: formContext,
                             fieldsProcessed: transformedData.length,
