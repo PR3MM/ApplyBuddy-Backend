@@ -3,7 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 let roundRobinCounter = 0;
 
 export async function extension(req, res) {
-    console.log('req:', req);
+    // console.log('req:', req);
     // console.log('Received request:', JSON.stringify(req.body, null, 2));
     const fields = req.body.fields || [];
     const userData = req.body.userData || req.body.userdata || {};
