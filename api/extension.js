@@ -1,40 +1,38 @@
 import { GoogleGenAI } from '@google/genai';
- 
+
 let roundRobinCounter = 0;
 
 export default async function handler(req, res) {
-    // Enable CORS for serverless function
-    res.setHeader('Access-Control-Allow-Credentials', true);
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-    res.setHeader(
-        'Access-Control-Allow-Headers',
-        'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-    );
-
-    // Handle preflight request
-    if (req.method === 'OPTIONS') {
-        res.status(200).end();
-        return;
-    }
-
-    // Only allow POST method
-    if (req.method !== 'POST') {
-        return res.status(405).json({
-            success: false,
-            message: 'Method not allowed. This endpoint only accepts POST requests.'
-        });
-    }
-
     try {
-        // Extract data from request body
-        const fields = req.body.fields || [];
-        const userData = req.body.userData || req.body.userdata || {};
-        const formContext = req.body.formContext || 'general'; // New: form type context
+        // Enable CORS for serverless function
+        res.setHeader('Access-Control-Allow-Credentials', true);
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+        res.setHeader(
+            'Access-Control-Allow-Headers',
+            'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+        );
 
-        // Debug logging (optional - remove in production)
-        console.log('Received fields count:', fields.length);
-        console.log('Form context:', formContext);
+        // Handle preflight request
+        if (req.method === 'OPTIONS') {
+            res.status(200).end();
+            return;
+        }
+
+        // Only allow POST method
+        if (req.method !== 'POST') {
+            return res.status(405).json({
+                success: false,
+                message: 'Method not allowed. This endpoint only accepts POST requests.'
+            });
+        }
+
+        // Extract data from request body
+        const fields = req.body?.fields || [];
+        const userData = req.body?.userData || req.body?.userdata || {};
+        const formContext = req.body?.formContext || 'general';
+
+        console.log('Received request - Fields count:', fields.length, 'Form context:', formContext);
 
         if (!fields || fields.length === 0) {
             return res.status(400).json({
@@ -50,7 +48,7 @@ export default async function handler(req, res) {
                         lastName: "Doe",
                         email: "john.doe@example.com"
                     },
-                    formContext: "job_application" // or "registration", "survey", etc.
+                    formContext: "job_application"
                 }
             });
         }
@@ -71,96 +69,24 @@ export default async function handler(req, res) {
             };
         });
 
-        // Generate context-aware matching rules
-        const getContextualMatchingRules = (context, userData) => {
-            const commonRules = `
-UNIVERSAL MATCHING RULES:
-1. **Name Fields**: Look for keys containing "name", "first", "last", "full name", "candidate"
-2. **Email Fields**: Look for keys containing "email", "e-mail", "mail"
-3. **Phone/Mobile Fields**: Look for keys containing "phone", "mobile", "contact", "number"
-4. **Date Fields**: Look for keys containing "date", "birth", "dob"
-5. **Address Fields**: Look for keys containing "address", "city", "state", "zip", "postal"
-6. **Gender Fields**: Look for keys containing "gender", "sex"
-            `;
+        // Build the AI prompt
+        const buildPrompt = () => {
+            const fieldDescriptions = enhancedFields.map((field, index) => {
+                let fieldInfo = `${index + 1}. Field Name: "${field.questionText}"`;
+                fieldInfo += `\n   Type: ${field.fieldType}`;
+                fieldInfo += `\n   Required: ${field.isRequired}`;
+                
+                if (field.hasOptions) {
+                    fieldInfo += `\n   Available Options: ${JSON.stringify(field.options)}`;
+                    fieldInfo += `\n   SELECTION RULE: Must choose EXACTLY one option from above list`;
+                } else {
+                    fieldInfo += `\n   Input Type: Free text - extract from user data`;
+                }
+                
+                return fieldInfo;
+            }).join('\n\n');
 
-            const contextRules = {
-                job_application: `
-ACADEMIC/JOB APPLICATION SPECIFIC RULES:
-- **Education Fields**: Look for "degree", "course", "qualification", "education"
-- **Institution Fields**: Look for "college", "university", "school", "institution"
-- **Branch/Stream**: Look for "branch", "stream", "specialization", "major", "field"
-- **Year/Passing**: Look for "year", "passing", "graduation", "expected"
-- **Grades/Marks**: Look for "percentage", "cgpa", "gpa", "marks", "score"
-- **Experience**: Look for "experience", "work", "internship", "job"
-- **Skills**: Look for "skills", "technical", "programming", "languages"
-                `,
-                registration: `
-REGISTRATION FORM SPECIFIC RULES:
-- **Username**: Look for "username", "login", "handle"
-- **Password**: Never auto-fill password fields for security
-- **Preferences**: Look for "preference", "choice", "option"
-- **Terms**: For checkboxes about terms, leave unchecked (user should manually accept)
-                `,
-                survey: `
-SURVEY FORM SPECIFIC RULES:
-- **Rating Fields**: Look for previous ratings or preferences
-- **Multiple Choice**: Match based on user's past responses or preferences
-- **Feedback**: Look for relevant opinions or comments in user data
-                `,
-                ecommerce: `
-E-COMMERCE FORM SPECIFIC RULES:
-- **Billing Address**: Look for "billing", "address", "street", "city"
-- **Shipping Address**: Look for "shipping", "delivery"
-- **Payment**: Never auto-fill payment details for security
-- **Quantity**: Default to 1 or look for quantity preferences
-                `
-            };
-
-            return commonRules + (contextRules[context] || '');
-        };
-
-        // Generate intelligent field analysis
-        const generateFieldAnalysis = (userData) => {
-            const dataKeys = Object.keys(userData);
-            const analysis = [];
-            
-            // Categorize user data
-            const categories = {
-                personal: dataKeys.filter(key => 
-                    key.toLowerCase().includes('name') || 
-                    key.toLowerCase().includes('email') || 
-                    key.toLowerCase().includes('phone') || 
-                    key.toLowerCase().includes('contact') ||
-                    key.toLowerCase().includes('gender') ||
-                    key.toLowerCase().includes('date')
-                ),
-                academic: dataKeys.filter(key => 
-                    key.toLowerCase().includes('degree') || 
-                    key.toLowerCase().includes('college') || 
-                    key.toLowerCase().includes('university') || 
-                    key.toLowerCase().includes('course') ||
-                    key.toLowerCase().includes('grade') ||
-                    key.toLowerCase().includes('percentage') ||
-                    key.toLowerCase().includes('year')
-                ),
-                contact: dataKeys.filter(key => 
-                    key.toLowerCase().includes('address') || 
-                    key.toLowerCase().includes('city') || 
-                    key.toLowerCase().includes('state') ||
-                    key.toLowerCase().includes('zip')
-                )
-            };
-
-            return `
-USER DATA ANALYSIS:
-Personal Info Keys: ${JSON.stringify(categories.personal)}
-Academic Info Keys: ${JSON.stringify(categories.academic)}  
-Contact Info Keys: ${JSON.stringify(categories.contact)}
-All Available Keys: ${JSON.stringify(dataKeys)}
-            `;
-        };
-
-        const prompt = `You are an intelligent universal form-filling assistant. Your task is to analyze ANY type of form and fill it with appropriate values from user data.
+            return `You are an intelligent universal form-filling assistant. Your task is to analyze ANY type of form and fill it with appropriate values from user data.
 
 CRITICAL REQUIREMENTS:
 - You MUST return a valid JSON object with field names as keys and values as answers
@@ -176,43 +102,22 @@ FORM CONTEXT: ${formContext}
 USER DATA AVAILABLE:
 ${JSON.stringify(userData, null, 2)}
 
-${generateFieldAnalysis(userData)}
-
 FORM FIELDS TO FILL:
-${enhancedFields.map((field, index) => {
-    let fieldInfo = `${index + 1}. Field Name: "${field.questionText}"`;
-    fieldInfo += `\n   Type: ${field.fieldType}`;
-    fieldInfo += `\n   Required: ${field.isRequired}`;
-    
-    if (field.hasOptions) {
-        fieldInfo += `\n   Available Options: ${JSON.stringify(field.options)}`;
-        fieldInfo += `\n   SELECTION RULE: Must choose EXACTLY one option from above list`;
-    } else {
-        fieldInfo += `\n   Input Type: Free text - extract from user data`;
-    }
-    
-    return fieldInfo;
-}).join('\n\n')}
+${fieldDescriptions}
 
-${getContextualMatchingRules(formContext, userData)}
-
-INTELLIGENT MATCHING STRATEGY:
-1. **Keyword Matching**: Look for similar words between field names and user data keys
-2. **Semantic Understanding**: Understand what each field is asking for
-3. **Context Awareness**: Use form context to make better matches
-4. **Option Validation**: For dropdown/radio fields, find the best semantic match from options
-5. **Data Type Matching**: Match field types (email→email, phone→phone, etc.)
+MATCHING RULES:
+1. Name Fields: Look for keys containing "name", "first", "last", "full name", "candidate"
+2. Email Fields: Look for keys containing "email", "e-mail", "mail"
+3. Phone Fields: Look for keys containing "phone", "mobile", "contact", "number"
+4. Date Fields: Look for keys containing "date", "birth", "dob"
+5. Address Fields: Look for keys containing "address", "city", "state", "zip", "postal"
+6. Education Fields: Look for "degree", "course", "qualification", "education"
+7. Institution Fields: Look for "college", "university", "school", "institution"
 
 SECURITY RULES:
 - NEVER fill: passwords, credit cards, SSN, bank details, security codes
 - BE CAUTIOUS with: financial info, government IDs, sensitive personal data
 - ALWAYS validate options for dropdown/radio fields
-
-EXAMPLE MATCHING LOGIC:
-- Field "Full Name" + User data has "name": "John Doe" → "John Doe"
-- Field "Email Address" + User data has "email": "john@example.com" → "john@example.com"  
-- Field "College" with options [A, B, C] + User data suggests B → Select "B"
-- Field "Year" with options [2024, 2025, 2026] + User data "graduation_year": "2025" → "2025"
 
 OUTPUT FORMAT:
 Return ONLY a JSON object with exact field names as keys:
@@ -228,15 +133,21 @@ FINAL INSTRUCTIONS:
 - Empty string for fields without sufficient user data
 - No explanatory text, only JSON response
 - Be intelligent but conservative - only fill what you're confident about`;
+        };
+
+        const prompt = buildPrompt();
 
         // Get API keys from environment variables
         const apiKeys = [
             process.env.GEMINI_API_KEY_1,
-            process.env.GEMINI_API_KEY_2
-        ].filter(key => key);  
+            process.env.GEMINI_API_KEY_2,
+            process.env.GEMINI_API_KEY_3,
+            process.env.GEMINI_API_KEY_4,
+            process.env.GEMINI_API_KEY_5
+        ].filter(key => key);
 
         if (apiKeys.length === 0) {
-            throw new Error('No valid API keys found. Please set GEMINI_API_KEY_1 or GEMINI_API_KEY_2 environment variables.');
+            throw new Error('No valid API keys found. Please set GEMINI_API_KEY environment variables.');
         }
 
         const keyIndex = roundRobinCounter % apiKeys.length;
@@ -326,7 +237,6 @@ FINAL INSTRUCTIONS:
                         const matchedOption = options.find(opt => 
                             opt.toLowerCase().includes(lowerAnswer) || 
                             lowerAnswer.includes(opt.toLowerCase()) ||
-                            // Additional fuzzy matching
                             opt.toLowerCase().replace(/[^a-z0-9]/g, '').includes(
                                 lowerAnswer.replace(/[^a-z0-9]/g, '')
                             )
@@ -398,7 +308,8 @@ FINAL INSTRUCTIONS:
         return res.status(500).json({
             success: false,
             message: 'Error processing form data with AI',
-            error: error.message
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }
 }
